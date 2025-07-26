@@ -1,0 +1,228 @@
+name: Test DevContainers
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'web3-devcontainer-*/**'
+      - '.github/workflows/test-devcontainers.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'web3-devcontainer-*/**'
+      - '.github/workflows/test-devcontainers.yml'
+  schedule:
+    # Run tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    # Allow manual trigger
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      devcontainers: ${{ steps.changes.outputs.devcontainers }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Detect changed devcontainers
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Test all devcontainers on schedule or manual trigger
+            DEVCONTAINERS=$(find . -maxdepth 1 -type d -name "web3-devcontainer-*" | sed 's|./||' | jq -R -s -c 'split("\n")[:-1]')
+          else
+            # Test only changed devcontainers on push/PR
+            CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..${{ github.sha }} 2>/dev/null || git diff --name-only HEAD~1)
+            DEVCONTAINERS=$(echo "$CHANGED_FILES" | grep -E '^web3-devcontainer-[^/]+/' | cut -d'/' -f1 | sort -u | jq -R -s -c 'split("\n")[:-1]')
+          fi
+          echo "devcontainers=$DEVCONTAINERS" >> $GITHUB_OUTPUT
+          echo "Detected devcontainers to test: $DEVCONTAINERS"
+
+  test-individual:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.devcontainers != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        devcontainer: ${{ fromJson(needs.detect-changes.outputs.devcontainers) }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Install DevContainer CLI
+        run: npm install -g @devcontainers/cli
+        
+      - name: Make test scripts executable
+        run: |
+          chmod +x test-individual-devcontainer.sh
+          chmod +x test-all-devcontainers.sh
+          
+      - name: Test DevContainer - ${{ matrix.devcontainer }}
+        id: test
+        run: |
+          echo "Testing ${{ matrix.devcontainer }}"
+          ./test-individual-devcontainer.sh "${{ matrix.devcontainer }}" > test-output.log 2>&1
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+        
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.devcontainer }}
+          path: |
+            test-output.log
+            /tmp/devcontainer-*.log
+          retention-days: 30
+          
+      - name: Check test result
+        if: steps.test.outputs.exit_code != '0'
+        run: |
+          echo "❌ DevContainer ${{ matrix.devcontainer }} failed testing"
+          cat test-output.log
+          exit 1
+
+  test-comprehensive:
+    needs: detect-changes
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Install DevContainer CLI
+        run: npm install -g @devcontainers/cli
+        
+      - name: Install bc for calculations
+        run: sudo apt-get update && sudo apt-get install -y bc
+        
+      - name: Make test scripts executable
+        run: |
+          chmod +x test-individual-devcontainer.sh
+          chmod +x test-all-devcontainers.sh
+          
+      - name: Run comprehensive tests
+        id: comprehensive
+        run: |
+          ./test-all-devcontainers.sh > comprehensive-test.log 2>&1
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+        
+      - name: Upload comprehensive test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: comprehensive-test-results
+          path: |
+            comprehensive-test.log
+            devcontainer-test-report-*.json
+            test-logs/
+          retention-days: 30
+          
+      - name: Generate test summary
+        if: always()
+        run: |
+          if [ -f devcontainer-test-report-*.json ]; then
+            REPORT_FILE=$(ls devcontainer-test-report-*.json | head -1)
+            echo "## 🧪 DevContainer Test Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            TOTAL=$(jq -r '.summary.total' "$REPORT_FILE")
+            PASSED=$(jq -r '.summary.passed' "$REPORT_FILE")
+            FAILED=$(jq -r '.summary.failed' "$REPORT_FILE")
+            SKIPPED=$(jq -r '.summary.skipped' "$REPORT_FILE")
+            SUCCESS_RATE=$(jq -r '.summary.success_rate' "$REPORT_FILE")
+            
+            echo "- 📊 **Total DevContainers**: $TOTAL" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Passed**: $PASSED" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ **Failed**: $FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "- ⏭️ **Skipped**: $SKIPPED" >> $GITHUB_STEP_SUMMARY
+            echo "- 📈 **Success Rate**: $SUCCESS_RATE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            echo "### Detailed Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| DevContainer | Status | Build | Start | Duration |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------------|--------|-------|--------|----------|" >> $GITHUB_STEP_SUMMARY
+            
+            jq -r '.results[] | [.name, .status, .tests.build_success, .tests.container_start, (.duration_seconds | tostring)] | @tsv' "$REPORT_FILE" | while IFS=$'\t' read -r name status build start duration; do
+              case $status in
+                "passed") status_icon="✅" ;;
+                "failed") status_icon="❌" ;;
+                "skipped") status_icon="⏭️" ;;
+                *) status_icon="❓" ;;
+              esac
+              
+              build_icon=$([ "$build" = "true" ] && echo "✅" || echo "❌")
+              start_icon=$([ "$start" = "true" ] && echo "✅" || echo "❌")
+              
+              echo "| $name | $status_icon $status | $build_icon | $start_icon | ${duration}s |" >> $GITHUB_STEP_SUMMARY
+            done
+          fi
+          
+      - name: Check comprehensive test result
+        if: steps.comprehensive.outputs.exit_code != '0'
+        run: |
+          echo "❌ Comprehensive testing failed"
+          exit 1
+
+  notify-results:
+    needs: [test-individual, test-comprehensive]
+    if: always() && (needs.test-individual.result == 'failure' || needs.test-comprehensive.result == 'failure')
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Create issue on failure
+        if: github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `DevContainer Tests Failed - ${new Date().toISOString().split('T')[0]}`;
+            const body = `
+            ## 🚨 DevContainer Test Failure
+            
+            The scheduled DevContainer tests have failed. Please check the workflow run for details:
+            
+            **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            **Triggered by**: Scheduled run
+            **Date**: ${new Date().toISOString()}
+            
+            ### Next Steps
+            1. Review the test logs in the workflow artifacts
+            2. Fix any failing DevContainers
+            3. Close this issue once resolved
+            
+            ---
+            *This issue was automatically created by the DevContainer testing workflow.*
+            `;
+            
+            // Check if a similar issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['devcontainer-test-failure'],
+              state: 'open'
+            });
+            
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['devcontainer-test-failure', 'bug']
+              });
+            }
