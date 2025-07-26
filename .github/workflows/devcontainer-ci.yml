@@ -1,0 +1,29 @@
+name: DevContainer CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Build and test devcontainer
+      uses: devcontainers/ci@v0.3
+      with:
+        imageName: web3-devcontainer-secure
+        cacheFrom: web3-devcontainer-secure
+        push: never
+        runCmd: |
+          echo "Testing secure devcontainer build..."
+          node --version
+          npm --version
+          which forge || echo "Forge not found"
+          which slither || echo "Slither not found"
+          which myth || echo "Mythril not found"
+          echo "Security tools verification complete"

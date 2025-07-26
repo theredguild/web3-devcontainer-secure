@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables (CRITICAL SECURITY)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# Private keys (CRITICAL SECURITY)
+*.key
+*.pem
+private_key*
+mnemonic*
+seed*
+
+# Hardhat/Foundry
+cache/
+artifacts/
+out/
+broadcast/
+deployments/
+
+# IDEs
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+coverage/
+
+# Temporary files
+tmp/
+temp/
