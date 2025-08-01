@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/javascript-node:1-20-bullseye
+FROM mcr.microsoft.com/devcontainers/javascript-node:1-20-bookworm
 
 # Create secure non-root user
 RUN groupadd -r devuser && useradd -r -g devuser -m -d /home/devuser devuser
@@ -9,11 +9,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     git \
     build-essential \
-    python3 \
+    python3-dev \
+    libpython3-dev \
     python3-pip \
+    python3-venv \
     ca-certificates \
     gnupg \
     lsb-release \
+    libssl-dev \
+    libffi-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Foundry (Forge, Cast, Anvil)
@@ -25,12 +30,15 @@ RUN foundryup
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Install Python security tools
-RUN pip3 install --no-cache-dir \
-    slither-analyzer \
-    mythril \
-    manticore \
-    crytic-compile
+# Setup virtual enviroment 
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install uv and Python security tools
+RUN python3 -m pip install --no-cache-dir --upgrade uv && \
+    uv tool install slither-analyzer && \
+    uv tool install mythril && \
+    uv tool install crytic-compile 
 
 # Install Node.js security and Web3 tools
 RUN npm install -g \
@@ -46,8 +54,8 @@ RUN npm install -g \
     prettier-plugin-solidity
 
 # Set up secure workspace permissions
-RUN mkdir -p /workspace && chown -R devuser:devuser /workspace
-RUN mkdir -p /home/devuser/.npm && chown -R devuser:devuser /home/devuser/.npm
+RUN mkdir -p /workspace /home/devuser/.npm && \
+    chown -R devuser:devuser /workspace /home/devuser/.npm
 
 # Copy Foundry to system location for all users
 RUN mkdir -p /usr/local/foundry/bin && \
