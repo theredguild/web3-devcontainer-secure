@@ -76,7 +76,7 @@ RUN uv tool install slither-analyzer && \
     uv tool install crytic-compile 
 
 # Install Hardhat
-RUN pnpm install -g hardhat
+RUN pnpm install -g hardhat solhint
 
 # Copy prebuilt Echidna binary
 COPY --chown=vscode:vscode --from=echidna /usr/local/bin/echidna ${HOME}/.local/bin/echidna
