@@ -11,13 +11,15 @@ A production-ready Web3 development environment with built-in security tools and
 
 **Development Tools:**
 - Foundry (forge, cast, anvil)
-- Hardhat with comprehensive plugins
-- OpenZeppelin contracts
+- Hardhat (testing, deployment)
+- Go (latest via asdf)
+- Rust (latest via rustup)
+- Python 3.12 with uv package manager
 
 **Security Tools:**
 - Slither (static analysis)
 - Mythril (symbolic execution)
-- Manticore (dynamic analysis)
+- Echidna (fuzzing)
 - Solhint (security linting)
 
 **Container Security:**
@@ -42,6 +44,8 @@ Run security analysis before deploying:
 slither .                    # Static analysis
 forge test --fuzz-runs 1000 # Comprehensive testing
 solhint 'contracts/**/*.sol' # Security linting
+echidna -c echidna.config.yaml # Fuzzing
+myth analyze contract.sol # Symbolic execution
 ```
 
 ## Need something different?
