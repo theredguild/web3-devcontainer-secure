@@ -34,9 +34,9 @@
     
     "forwardPorts": [3000, 8545, 8080],
     
-    "postCreateCommand": "chmod +x .devcontainer/setup.sh && ./.devcontainer/setup.sh",
+    "postCreateCommand": "bash .devcontainer/postCreateCommand.sh",
     
-    "remoteUser": "devuser",
+    "remoteUser": "vscode",
     
     "mounts": [
         "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
