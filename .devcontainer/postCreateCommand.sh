@@ -20,21 +20,6 @@ echo "🔒 Configuring secure npm settings..."
 npm config set fund false
 npm config set audit-level high
 
-# Interactive Hardhat project initialization
-if [ ! -f "hardhat.config.js" ] && [ ! -f "hardhat.config.ts" ]; then
-    echo ""
-    echo "📦 No Hardhat project detected in this workspace."
-    read -p "Do you want to create a new Hardhat project? (y/N): " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo "📦 Initializing Hardhat project..."
-        npx hardhat init --yes || true
-        echo "✅ Hardhat project created successfully!"
-    else
-        echo "⏭️ Skipping Hardhat project creation."
-    fi
-fi
-
 # Set up basic security linting
 echo "🔍 Setting up security linting..."
 if [ ! -f ".solhint.json" ]; then
@@ -136,4 +121,7 @@ EOF
 echo "✅ Secure Web3 development environment setup complete!"
 echo "🔍 Run 'slither .' to analyze your contracts for vulnerabilities"
 echo "🧪 Run 'forge test' to run your test suite"
+echo "🔍 Run 'echidna -c echidna.config.yaml' to run fuzzing"
+echo "🔍 Run 'solhint \"contracts/**/*.sol\"' to lint your contracts"
+echo "🔍 Run 'myth analyze contract.sol' to run symbolic execution"
 echo "📖 Check SECURITY.md for security guidelines"
