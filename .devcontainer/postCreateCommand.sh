@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# Secure Web3 Development Environment Setup
+# Secure Web3 Auditor Devcontainter
 # This script runs after container creation to finalize the secure setup
 
 set -e
 
-echo "🛡️ Setting up secure Web3 development environment..."
+echo "🛡️ Setting up Web3 Auditor environment..."
 
 # Ensure foundry is accessible
-if ! command -v forge &> /dev/null; then
+if ! command forge -V &> /dev/null; then
     echo "Installing Foundry for current user..."
     curl -L https://foundry.paradigm.xyz | bash
     source ~/.bashrc
@@ -19,12 +19,6 @@ fi
 echo "🔒 Configuring secure npm settings..."
 npm config set fund false
 npm config set audit-level high
-
-# Initialize a basic hardhat project if none exists
-if [ ! -f "hardhat.config.js" ] && [ ! -f "hardhat.config.ts" ]; then
-    echo "📦 Initializing Hardhat project..."
-    npx hardhat init --yes || true
-fi
 
 # Set up basic security linting
 echo "🔍 Setting up security linting..."
@@ -127,4 +121,7 @@ EOF
 echo "✅ Secure Web3 development environment setup complete!"
 echo "🔍 Run 'slither .' to analyze your contracts for vulnerabilities"
 echo "🧪 Run 'forge test' to run your test suite"
+echo "🔍 Run 'echidna -c echidna.config.yaml' to run fuzzing"
+echo "🔍 Run 'solhint \"contracts/**/*.sol\"' to lint your contracts"
+echo "🔍 Run 'myth analyze contract.sol' to run symbolic execution"
 echo "📖 Check SECURITY.md for security guidelines"
