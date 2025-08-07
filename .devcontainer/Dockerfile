@@ -84,7 +84,6 @@ RUN chmod 755 ${HOME}/.local/bin/echidna
 
 # Switch to non-root user
 USER vscode
-WORKDIR ${HOME}
 
 # Set up user environment
 RUN echo 'export PATH="/usr/local/foundry/bin:$PATH"' >> /home/vscode/.zshrc
